@@ -1,0 +1,45 @@
+name: KBW Auto-Book Decembre 24h
+on:
+  schedule:
+    - cron: '0 */4 * * *'
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install
+        run: pip install playwright requests && playwright install chromium --with-deps
+      - name: Auto-book
+        env:
+          TG_TOKEN: ${{ secrets.TG_TOKEN }}
+          KBW_ANREDE: ${{ secrets.KBW_ANREDE }}
+          KBW_VORNAME: ${{ secrets.KBW_VORNAME }}
+          KBW_NACHNAME: ${{ secrets.KBW_NACHNAME }}
+          KBW_EMAIL: ${{ secrets.KBW_EMAIL }}
+          KBW_TELEFON: ${{ secrets.KBW_TELEFON }}
+          KBW_GEBURTSDATUM: ${{ secrets.KBW_GEBURTSDATUM }}
+          KBW_GEBURTSORT: ${{ secrets.KBW_GEBURTSORT }}
+          KBW_STRASSE: ${{ secrets.KBW_STRASSE }}
+          KBW_PLZ: ${{ secrets.KBW_PLZ }}
+          KBW_ORT: ${{ secrets.KBW_ORT }}
+          KBW_LAND: ${{ secrets.KBW_LAND }}
+          KBW_MUTTERSPRACHE: ${{ secrets.KBW_MUTTERSPRACHE }}
+          KBW_PASS_B64_1: ${{ secrets.KBW_PASS_B64_1 }}
+          KBW_PASS_B64_2: ${{ secrets.KBW_PASS_B64_2 }}
+          KBW_PASS_B64: ${{ secrets.KBW_PASS_B64 }}
+        run: python -u check.py
+
+      - name: Auto-restart sauf si succes
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ -f SUCCESS.txt ]; then echo "Inscription reussie, stop"; exit 0; fi
+          sleep 60
+          curl -X POST -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github.v3+json" https://api.github.com/repos/${{ github.repository }}/actions/workflows/kbw.yml/dispatches -d '{"ref":"main"}' || true
