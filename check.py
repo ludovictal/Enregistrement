@@ -16,6 +16,18 @@ def notify(text):
         except: pass
     print(text)
 
+# Heartbeat toutes les 4h sur l'heure absolue, pas sur le début du run
+# Comme ça il ne dérive pas même quand on chaîne les runs
+HEARTBEAT_BLOCK = [int(time.time() // 14400)]
+
+def maybe_heartbeat():
+    cur = int(time.time() // 14400)
+    if cur != HEARTBEAT_BLOCK[0]:
+        HEARTBEAT_BLOCK[0] = cur
+        notify(f"💓 KBW Bot toujours en cours - {datetime.now().strftime('%d/%m %H:%M')} - Recherche active, aucune réservation pour l'instant")
+        return True
+    return False
+
 def parse_date(slot_txt):
     try:
         m = re.search(r'(\d{2})\.(\d{2})\.(\d{4})', slot_txt)
@@ -112,6 +124,7 @@ def auto_book_infini(page, slot_text, header_el):
     tentative = 0
     while True:
         tentative += 1
+        maybe_heartbeat()
         print(f"\nAUTO-BOOK #{tentative} : {slot_text}")
         notify(f"🤖 Tentative #{tentative}\n{slot_text}")
         try:
@@ -167,6 +180,7 @@ with sync_playwright() as p:
     max_dur = 21000 if os.getenv("GITHUB_ACTIONS")=="true" else 999999999
 
     while time.time() - start < max_dur:
+        maybe_heartbeat()
         print(f"\nPHASE 1 : INIT")
         try:
             page.goto(URL, wait_until="domcontentloaded", timeout=60000)
@@ -181,7 +195,6 @@ with sync_playwright() as p:
         print(f"PHASE 2 : DETECTION")
         all_libres = scan_with_dates(page)
         all_valid = [x for x in all_libres if x[2]]
-        # FIN FEVRIER = du 20 au 29 fevrier
         fin_fev = [x for x in all_valid if x[2].month == 2 and x[2].day >= 20]
         print(f"  -> {len(all_valid)} libres, {len(fin_fev)} en fin fevrier")
 
@@ -204,19 +217,15 @@ with sync_playwright() as p:
 
         if fin_fev:
             fin_fev.sort(key=lambda x: x[2])
-            cible = fin_fev[-1]  # Dernière de fin février
+            cible = fin_fev[-1]
             print(f"CIBLE FIN FEVRIER : {cible[0]}")
         else:
-            # Plus proche APRÈS février
-            apres_fev = [x for x in all_valid if x[2].month > 2 or x[2].year > 2027 or (x[2].month == 2 and x[2].day >= 20 and x[2] > datetime.now())]
-            # Plus simple : tout après le 28 février
             apres_fev = [x for x in all_valid if x[2] > datetime(2027, 2, 28)]
             if not apres_fev:
-                # Si pas de date après février 2027, prend après février 2026
                 apres_fev = [x for x in all_valid if x[2] > datetime(2026, 2, 28)]
             apres_fev.sort(key=lambda x: x[2])
             if not apres_fev: continue
-            cible = apres_fev[0]  # La plus proche après février
+            cible = apres_fev[0]
             print(f"CIBLE APRES FEVRIER : {cible[0]}")
 
         txt, el, dobj = cible
